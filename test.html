@@ -1,0 +1,334 @@
+<?php
+// Database connection configuration
+$servername = "localhost"; // Usually localhost
+$username = "root"; // Replace with your MySQL username
+$password = ""; // Replace with your MySQL password
+$dbname = "your_database_name"; // Replace with your actual database name
+
+// Create connection
+$conn = new mysqli($servername, $username, $password, $dbname);
+
+// Check connection
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+// Process Registration
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] == 'register') {
+    $fullname = htmlspecialchars(trim($_POST['reg_full_name']));
+    $email = filter_var(trim($_POST['reg_email']), FILTER_SANITIZE_EMAIL);
+    $username = htmlspecialchars(trim($_POST['reg_username']));
+    $password = password_hash(trim($_POST['reg_password']), PASSWORD_DEFAULT); // Hash the password
+
+    // Check for existing user
+    $stmt = $conn->prepare("SELECT * FROM users WHERE username = ? OR email = ?");
+    $stmt->bind_param("ss", $username, $email);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    if ($result->num_rows > 0) {
+        echo "<script>alert('Username or email already exists.')</script>";
+    } else {
+        // Prepare the insert statement
+        $stmt = $conn->prepare("INSERT INTO users (full_name, email, username, password) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("ssss", $fullname, $email, $username, $password);
+
+        if ($stmt->execute()) {
+            echo "<script>alert('Registration successful for " . $fullname . "!')</script>";
+        } else {
+            echo "<script>alert('Error: " . $stmt->error . "')</script>";
+        }
+    }
+    $stmt->close();
+}
+
+// Process Login
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] == 'login') {
+    $username = htmlspecialchars(trim($_POST['username']));
+    $password = trim($_POST['password']);
+
+    $stmt = $conn->prepare("SELECT password, full_name FROM users WHERE username = ?");
+    $stmt->bind_param("s", $username);
+    $stmt->execute();
+    $stmt->store_result();
+
+    if ($stmt->num_rows > 0) {
+        $stmt->bind_result($hashed_password, $full_name);
+        $stmt->fetch();
+
+        if (password_verify($password, $hashed_password)) {
+            echo "<script>alert('Login successful! Welcome back, " . $full_name . "!')</script>";
+        } else {
+            echo "<script>alert('Invalid credentials.')</script>";
+        }
+    } else {
+        echo "<script>alert('User not found.')</script>";
+    }
+    
+    $stmt->close();
+}
+
+$conn->close();
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Augmented Reality Education</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f8ff;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        header {
+            background-color: #007BFF;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            width: 100%;
+        }
+        nav {
+            background-color: #0056b3;
+            padding: 10px;
+            text-align: center;
+            width: 100%;
+        }
+        nav a {
+            color: white;
+            text-decoration: none;
+            margin: 0 15px;
+            padding: 5px 10px;
+        }
+        nav a:hover {
+            text-decoration: underline;
+        }
+        .content-section {
+            padding: 20px;
+            margin: 20px auto;
+            max-width: 1000px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: none; /* Hide all sections initially */
+        }
+        .login-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 8px 16px;
+            background-color: white;
+            color: #007BFF;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .login-btn:hover {
+            background-color: #f0f0f0;
+        }
+        .logout-btn {
+            display: none; /* Hide the logout button initially */
+        }
+        .login-container {
+            max-width: 400px;
+            width: 100%;
+            padding: 30px;
+            border: 1px solid #007BFF;
+            border-radius: 8px;
+            background-color: #ffffff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            display: none; /* Hide login form initially */
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #007BFF;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        .error-message, .success-message {
+            color: red;
+            text-align: center;
+        }
+        .submit-btn {
+            width: 100%;
+            padding: 12px;
+            background-color: #007BFF;
+            color: #ffffff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        .submit-btn:hover {
+            background-color: #0056b3;
+        }
+        .register-link {
+            text-align: center;
+            margin-top: 15px;
+        }
+        .back-to-home {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .back-to-home a {
+            color: #007BFF;
+            text-decoration: none;
+        }
+        .back-to-home a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Welcome to Chenjedzo Augmented Reality Education Platform</h1>
+        <button class="login-btn" id="login-button" onclick="showSection('login');">Login</button>
+        <button class="logout-btn" id="logout-button" onclick="logout();">Logout</button>
+    </header>
+    
+    <nav>
+        <a href="#" onclick="showSection('home');">Home</a>
+        <a href="#" onclick="showSection('library');">Library</a>
+        <a href="#" onclick="showSection('classes');">Classes</a>
+        <a href="#" onclick="showSection('about');">About</a>
+        <a href="#" onclick="showSection('register');">Register</a>
+    </nav>
+
+    <main>
+        <!-- Home Section -->
+        <section id="home" class="content-section">
+            <h2>Home</h2>
+            <p>Explore the exciting world of augmented reality in education. This section contains an overview of our platform, features, and the significance of AR in the learning process.</p>
+        </section>
+    
+        <!-- Library Section -->
+        <section id="library" class="content-section">
+            <h2>Library</h2>
+            <p>Access a wealth of resources and materials for your learning journey, including articles, videos, and interactive content tailored for you.</p>
+        </section>
+        
+        <!-- Classes Section -->
+        <section id="classes" class="content-section">
+            <h2>Classes</h2>
+            <p>Join our innovative classes to enhance your skills with AR technology. Our courses are designed to make learning more engaging and effective.</p>
+        </section>
+        
+        <!-- About Section -->
+        <section id="about" class="content-section">
+            <h2>About</h2>
+            <p>Learn more about our mission and vision in the field of education, our team, and the impact we aim to create through augmented reality.</p>
+        </section>
+        
+        <!-- Login Section -->
+        <div class="login-container" id="login">
+            <h2>Login</h2>
+            <div class="error-message" id="error-message" style="display: none;"></div>
+            <div class="success-message" id="success-message" style="display: none;"></div>
+            
+            <form method="post" action="">
+                <input type="hidden" name="action" value="login">
+                <div class="form-group">
+                    <label for="username">Username:</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" name="password" required>
+                </div>    
+                
+                <button type="submit" class="submit-btn">Login</button>
+            </form>
+            
+            <div class="register-link">
+                Don't have an account? <a href="#" onclick="showSection('register');">Register here</a>
+            </div>
+            
+            <div class="back-to-home">
+                <a href="#" onclick="showSection('home');">← Back to Home</a>
+            </div>
+        </div>
+
+        <!-- Registration Section -->
+        <div class="login-container" id="register">
+            <h2>Register</h2>
+            <form method="post" action="">
+                <input type="hidden" name="action" value="register">
+                <div class="form-group">
+                    <label for="reg_full_name">Full Name:</label>
+                    <input type="text" id="reg_full_name" name="reg_full_name" required>
+                </div>
+                <div class="form-group">
+                    <label for="reg_email">Email:</label>
+                    <input type="email" id="reg_email" name="reg_email" required>
+                </div>
+                <div class="form-group">
+                    <label for="reg_username">Username:</label>
+                    <input type="text" id="reg_username" name="reg_username" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="reg_password">Password:</label>
+                    <input type="password" id="reg_password" name="reg_password" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="reg_confirm_password">Confirm Password:</label>
+                    <input type="password" id="reg_confirm_password" name="reg_confirm_password" required>
+                </div>
+                
+                <button type="submit" class="submit-btn">Register</button>
+            </form>
+            <div class="back-to-home">
+                <a href="#" onclick="showSection('home');">← Back to Home</a>
+            </div>
+        </div>
+    </main>
+    
+    <script>
+        function showSection(sectionId) {
+            const sections = document.querySelectorAll('.content-section, .login-container');
+            sections.forEach(section => {
+                section.style.display = 'none';
+            });
+            const activeSection = document.getElementById(sectionId);
+            if (activeSection) {
+                activeSection.style.display = 'block';
+            } else {
+                // Default to home if section not found
+                document.getElementById('home').style.display = 'block';
+            }
+        }
+        
+        // Show home section by default
+        document.addEventListener('DOMContentLoaded', function() {
+            showSection('home');
+        });
+
+        function logout() {
+            document.getElementById('logout-button').style.display = 'none'; // Hide logout button
+            document.getElementById('login-button').style.display = 'block'; // Show login button
+            alert("You have successfully logged out.");
+            showSection('home'); // Redirect to home
+        }
+    </script>
+</body>
+</html>
